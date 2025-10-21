@@ -1,9 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 // THIS IS BASIC IMPLEMENTATION OF THE BOMBERMAN! WIHTOUT ENEMY!
 // WASD FOR DIRECTION. P FOR PLANTING AND O FOR BLASTING;
-////////////////////////////////////////////////////////////////////////////////// 
-
-
+//////////////////////////////////////////////////////////////////////////////////
 const SIZE_X = 21;
 const SIZE_Y = 21;
 
@@ -28,8 +26,24 @@ function getSolidBox() {
   return generateBlock("", "\x1b[38;5;236m");
 }
 
-function getWall() {
-  return generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", "▦");
+const WALL_COLORS = [
+  "\x1b[48;5;34m", "\x1b[48;5;40m", "\x1b[48;5;46m", "\x1b[48;5;82m",
+  "\x1b[48;5;118m", "\x1b[48;5;148m", "\x1b[48;5;184m", "\x1b[48;5;190m",
+  "\x1b[48;5;220m", "\x1b[48;5;214m", "\x1b[48;5;208m", "\x1b[48;5;202m",
+  "\x1b[48;5;196m", "\x1b[48;5;160m", "\x1b[48;5;124m", "\x1b[48;5;94m",
+  "\x1b[48;5;130m", "\x1b[48;5;102m", "\x1b[48;5;240m", "\x1b[48;5;235m"
+];
+
+function getWall(burnStage = 0) {
+  let bgColor = "\x1b[38;5;196m";
+  if (burnStage === 0) {
+    return generateBlock(bgColor, "\x1b[48;5;120m", "▦");
+  }
+  
+  bgColor = WALL_COLORS[burnStage];
+
+  const icon = generateBlock(bgColor, "\x1b[48;5;120m", "🔥");
+  return icon.slice(0, icon.length / 2);
 }
 
 function getDoor() {
@@ -54,6 +68,18 @@ const WALL = getWall();
 const DOOR = getDoor();
 const CHARACTER = getCharacter();
 const BOMB = getBomb();
+
+console.log("WALLLS   ", getWall(0));
+console.log("WALLLS   ", getWall(1));
+console.log("WALLLS   ", getWall(2));
+console.log("WALLLS   ", getWall(3));
+console.log("WALLLS   ", getWall(4));
+console.log("WALLLS   ", getWall(5));
+
+
+function delay(duration = 1) {
+  for (let count = 0; count < duration * 1000000000; count++) {}
+}
 
 function generateLine(length, icon = BORDER_BLOCK) {
   return icon.repeat(length);
@@ -322,7 +348,6 @@ function addBombToGrid(grid, bombs) {
 }
 
 function removeWall(walls, x, y, dx, dy, count = BOMB_RANGE) {
-
   if (count === -1) {
     return walls;
   }
@@ -333,7 +358,53 @@ function removeWall(walls, x, y, dx, dy, count = BOMB_RANGE) {
   return removeWall(walls, x + dx, y + dy, dx, dy, count - 1);
 }
 
-function blastBombRemoveWall(bombCord, walls) {
+function includeInArray(array1, array2) {
+  for (let index = 0; index < array1.length; index++) {
+    let same = true;
+    for (let itr = 0; itr < array1[index].length; itr++) {
+      if (array2[itr] !== array1[index][itr]) {
+        same = false;
+        break;
+      }
+    }
+    if (same) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function copyCord(cord) {
+  return [cord[0], cord[1]];
+}
+
+function differenceBtwArrays(array, array2) {
+  const differentElements = [];
+  for (let index = 0; index < array.length; index++) {
+    if (!includeInArray(array2, array[index])) {
+      const differentCords = copyCord(array[index]);
+      differentElements.push(differentCords);
+    }
+  }
+  return differentElements;
+}
+
+function burningWallShow(grid, burningWalls, stage = 1) {
+  console.clear()
+  const gridWhileBuring = copyGrid(grid);
+
+  for (let index = 0; index < burningWalls.length; index++) {
+    const x = burningWalls[index][0];
+    const y = burningWalls[index][1];
+
+    gridWhileBuring[y][x] = getWall(stage);
+  }
+  console.log(showGrid(gridWhileBuring));
+  delay(0.02);
+  return stage === 19 ? "" : burningWallShow(grid, burningWalls, stage + 1);
+}
+
+function blastBombRemoveWall(grid, bombCord, walls) {
   let newWalls = copyGrid(walls);
   const x = bombCord[0];
   const y = bombCord[1];
@@ -342,12 +413,16 @@ function blastBombRemoveWall(bombCord, walls) {
   newWalls = removeWall(newWalls, x, y, 0, -1, BOMB_RANGE);
   newWalls = removeWall(newWalls, x, y, 1, 0, BOMB_RANGE);
   newWalls = removeWall(newWalls, x, y, -1, 0, BOMB_RANGE);
-  
+  const removedWalls = differenceBtwArrays(walls, newWalls);
+  console.log("show : ", grid.length);
+
+  burningWallShow(grid, removedWalls);
+
   return newWalls;
 }
 
 function playGame(grid, walls, charPos, bombs, moves) {
-  // console.clear();
+  console.clear();
   const gridWithWall = addWallToGrid(grid, walls);
 
   const gridWithBombs = addBombToGrid(gridWithWall, bombs);
@@ -373,8 +448,7 @@ function playGame(grid, walls, charPos, bombs, moves) {
     if (input === "p" && bombs.length < TOTAL_BOMB) {
       newBombs = placeBombs(bombs, charPos);
     } else if (input === "o" && bombs.length > 0) {
-
-      newWalls = blastBombRemoveWall(newBombs[0], walls);
+      newWalls = blastBombRemoveWall(gridWithChar, newBombs[0], walls);
       newBombs.shift();
     }
   }
