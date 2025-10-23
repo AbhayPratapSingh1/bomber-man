@@ -69,6 +69,14 @@ const DOOR = getDoor();
 const CHARACTER = getCharacter();
 const BOMB = getBomb();
 
+console.log("WALLLS   ", getWall(0));
+console.log("WALLLS   ", getWall(1));
+console.log("WALLLS   ", getWall(2));
+console.log("WALLLS   ", getWall(3));
+console.log("WALLLS   ", getWall(4));
+console.log("WALLLS   ", getWall(5));
+
+
 function delay(duration = 1) {
   for (let count = 0; count < duration * 1000000000; count++) {}
 }
@@ -140,18 +148,18 @@ function isValidWallPos(cords) {
   return true;
 }
 
-// function addWallToGrid(grid, walls) {
-//   const gridWithWall = copyGrid(grid);
-//   for (let index = 0; index < walls.length; index++) {
-//     const cords = walls[index];
-//     const x = cords[0];
-//     const y = cords[1];
-//     gridWithWall[y][x] = WALL;
-//   }
-//   return gridWithWall;
-// }
+function addWallToGrid(grid, walls) {
+  const gridWithWall = copyGrid(grid);
+  for (let index = 0; index < walls.length; index++) {
+    const cords = walls[index];
+    const x = cords[0];
+    const y = cords[1];
+    gridWithWall[y][x] = WALL;
+  }
+  return gridWithWall;
+}
 
-function addWallToGrid(count = 20) {
+function getRandomWallPos(count = 20) {
   const maskCords = [];
   let wallsToAdd = count;
   while (wallsToAdd > 0) {
@@ -396,7 +404,7 @@ function burningWallShow(grid, burningWalls, stage = 1) {
   return stage === 19 ? "" : burningWallShow(grid, burningWalls, stage + 1);
 }
 
-function blaskBomb(grid, bombCord, walls) {
+function blastBombRemoveWall(grid, bombCord, walls) {
   let newWalls = copyGrid(walls);
   const x = bombCord[0];
   const y = bombCord[1];
@@ -440,7 +448,7 @@ function playGame(grid, walls, charPos, bombs, moves) {
     if (input === "p" && bombs.length < TOTAL_BOMB) {
       newBombs = placeBombs(bombs, charPos);
     } else if (input === "o" && bombs.length > 0) {
-      newWalls = blaskBomb(gridWithChar, newBombs[0], walls);
+      newWalls = blastBombRemoveWall(gridWithChar, newBombs[0], walls);
       newBombs.shift();
     }
   }
@@ -455,7 +463,7 @@ const characterPos = [0, 0];
 
 const gridWithDoor = addDoorToGrid(grid, doorCords);
 
-const walls = addWallToGrid(140);
+const walls = getRandomWallPos(140);
 const wallsWithDoor = hideDoorWithWall(doorCords, walls);
 
 playGame(gridWithDoor, wallsWithDoor, characterPos, [], 0);
