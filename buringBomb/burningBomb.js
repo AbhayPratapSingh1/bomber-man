@@ -130,7 +130,7 @@ function copyGrid(grid) {
   return copyGrid;
 }
 
-function isValidDoorPos(cords) {
+function isValidPos(cords) {
   const x = cords[0];
   const y = cords[1];
   if (x % 2 === 1 && y % 2 === 1) {
@@ -185,7 +185,7 @@ function addWallToGrid(grid, count = 20) {
 
 function getDoorCords(grid) {
   let cords = [1, 1];
-  while (!isValidDoorPos(cords)) {
+  while (!isValidPos(cords)) {
     const x = randomNumber(0, SIZE_X);
     const y = randomNumber(0, SIZE_Y);
     cords = [x, y];
