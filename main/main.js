@@ -2,9 +2,10 @@
 // THIS IS BASIC IMPLEMENTATION OF THE BOMBERMAN! WIHT ENEMY!
 // WASD FOR DIRECTION. P FOR PLANTING AND O FOR BLASTING;
 //////////////////////////////////////////////////////////////////////////////////
-const SIZE_X = 11;
-const SIZE_Y = 11;
+const SIZE_X = 21;
+const SIZE_Y = 21;
 const MAX_TOTAL_WALLS = 140;
+const ENEMY_COUNT = 10
 
 const RESET = "\x1b[0m";
 function generateBlock(fg = "\x1b[38;5;120m", bg = "", icon = "█", times = 1) {
@@ -410,6 +411,7 @@ function isDeepEqual(item1, item2) {
   return item1 === item2;
 }
 
+
 function removeItemFromArray(array, item) {
   const newArray = [];
 
@@ -418,7 +420,7 @@ function removeItemFromArray(array, item) {
       newArray.push(array[index]);
     }
   }
-  ENEMY = newArray;
+  return newArray;
 }
 
 function replacePlaces(grid, cord, adding, icon, count = BOMB_RANGE) {
@@ -448,7 +450,7 @@ function replacePlaces(grid, cord, adding, icon, count = BOMB_RANGE) {
   }
 
   if (checkCordInIcons(ENEMY, cord)) {
-    removeItemFromArray(ENEMY, cord);
+    ENEMY = removeItemFromArray(ENEMY, cord);
   }
   grid[y][x] = icon;
   return replacePlaces(grid, [x + dx, y + dy], adding, icon, count - 1);
@@ -684,7 +686,7 @@ const grid = createBomberManGrid();
 
 const characterPos = [0, 0];
 
-const walls = getWalls(MAX_TOTAL_WALLS);
+let walls = getWalls(MAX_TOTAL_WALLS);
 
 const gridWithWall = addWallsToGrid(grid, walls);
 
@@ -703,11 +705,12 @@ gridWithWall[blastBoostCord[1]][blastBoostCord[0]] = WALL;
 const fireBoostItem = [BLAST_BOOST, blastBoostCord];
 hiddenItems.push(fireBoostItem);
 
-for (let index = 0; index < 2; index++) {
+for (let index = 0; index < ENEMY_COUNT; index++) {
   const enemyCord = getItemPlacingCord(walls);
   const enemyType =
     ENEMYS_CANDIDATES[Math.floor(Math.random() * ENEMYS_CANDIDATES.length)];
   ENEMY.push([enemyType, enemyCord]);
+  walls = removeItemFromArray(walls, enemyCord);
 }
 
 playGame(gridWithWall, bombsCords, hiddenItems, characterPos);
