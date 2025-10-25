@@ -5,25 +5,22 @@
 const SIZE_X = 21;
 const SIZE_Y = 21;
 
-const TOTAL_BOMB = 1;
-const BOMB_RANGE = 2;
-
 const RESET = "\x1b[0m";
-function generateBlock(fg = "\x1b[38;5;120m", bg = "", icon = "█") {
-  const tile = `${bg}${fg}${icon}${RESET}`;
-  return tile + tile;
+function generateBlock(fg = "\x1b[38;5;120m", bg = "", icon = "█", times = 1) {
+  const tile = `${bg}${fg}${icon.repeat(times)}${RESET}`;
+  return tile;
 }
 
 function getGroundIcon() {
-  return generateBlock("\x1b[38;5;120m");
+  return generateBlock("\x1b[38;5;120m", "", "█", 2);
 }
 
 function getBorderBlock() {
-  return generateBlock("", "\x1b[48;5;236m", "+");
+  return generateBlock("", "\x1b[48;5;236m", "+", 2);
 }
 
 function getSolidBox() {
-  return generateBlock("", "\x1b[38;5;236m");
+  return generateBlock("", "\x1b[38;5;236m", "█", 2);
 }
 
 const WALL_COLORS = [
@@ -52,28 +49,33 @@ const WALL_COLORS = [
 function getWall(burnStage = 0) {
   let bgColor = "\x1b[38;5;196m";
   if (burnStage === 0) {
-    return generateBlock(bgColor, "\x1b[48;5;120m", "▦");
+    return generateBlock(bgColor, "\x1b[48;5;120m", "▦", 2);
   }
 
   bgColor = WALL_COLORS[burnStage];
 
-  const icon = generateBlock(bgColor, "\x1b[48;5;120m", "🔥");
-  return icon.slice(0, icon.length / 2);
+  return generateBlock(bgColor, "\x1b[48;5;120m", "🔥");
 }
 
 function getDoor() {
-  const icon = generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", "🚪");
-  return icon.slice(0, icon.length / 2);
+  return generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", "🚪");
 }
 
 function getCharacter() {
-  const icon = generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", "🤖");
-  return icon.slice(0, icon.length / 2);
+  return generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", "🤖");
 }
 
 function getBomb() {
-  const icon = generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", "💣");
-  return icon.slice(0, icon.length / 2);
+  return generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", "💣");
+}
+
+function getBombBoost() 
+{
+  return generateBlock("\x1b[38;5;196m", "\x1b[48;5;240m", "💣");
+}
+
+function getBlastBoost() {
+  return generateBlock("\x1b[38;5;196m", "\x1b[48;5;240m", "💥");
 }
 
 const GRASS_TILE = getGroundIcon();
@@ -83,6 +85,13 @@ const WALL = getWall();
 const DOOR = getDoor();
 const CHARACTER = getCharacter();
 const BOMB = getBomb();
+const BOMB_BOOST = getBombBoost();
+const BLAST_BOOST = getBlastBoost();
+
+const CHARACTER_WALK_OVER = [GRASS_TILE, DOOR, BOMB_BOOST, BLAST_BOOST];
+
+let TOTAL_BOMB = 1;
+let BOMB_RANGE = 1;
 
 function delay(duration = 1) {
   for (let count = 0; count < duration * 1000000000; count++) {}
@@ -118,31 +127,19 @@ function generateGrid(sizeX = SIZE_X, sizeY = SIZE_Y, bg = GRASS_TILE) {
   return grid;
 }
 
-function copyGrid(grid) {
-  const copyGrid = [];
-  for (let row = 0; row < grid.length; row++) {
-    const copyingRow = [];
-    for (let col = 0; col < grid[row].length; col++) {
-      copyingRow.push(grid[row][col]);
-    }
-    copyGrid.push(copyingRow);
-  }
-  return copyGrid;
-}
-
 function randomNumber(st, end) {
   return Math.floor(Math.random() * (end - st)) + st;
 }
 
 function addWallToGrid(grid, count = 20) {
-  const gridWithWall = copyGrid(grid);
+  const gridWithWall = deepCopy(grid);
 
   let wallsToAdd = count;
   while (wallsToAdd > 0) {
     const x = randomNumber(0, SIZE_X);
     const y = randomNumber(0, SIZE_Y);
     const cords = [x, y];
-    if (isValidPos(cords)) {
+    if (isValidPos(cords, [])) {
       gridWithWall[y][x] = WALL;
       wallsToAdd--;
     }
@@ -150,18 +147,21 @@ function addWallToGrid(grid, count = 20) {
   return gridWithWall;
 }
 
-function isValidPos(cords) {
+function isValidPos(cords, usedPlaces) {
   const x = cords[0];
   const y = cords[1];
+  if (includeInArray(usedPlaces, cords)) {
+    return false;
+  }
   if (x % 2 === 1 && y % 2 === 1) {
     return false;
   }
   return x > 1 && y > 1;
 }
 
-function getDoorCords() {
+function getItemPlacingCord(usedPlaces) {
   let cords = [1, 1];
-  while (!isValidPos(cords)) {
+  while (!isValidPos(cords, usedPlaces)) {
     const x = randomNumber(0, SIZE_X);
     const y = randomNumber(0, SIZE_Y);
     cords = [x, y];
@@ -180,27 +180,20 @@ function createBomberManGrid(sizeX = SIZE_X, sizeY = SIZE_Y) {
 }
 
 function addDoorToGrid(grid, doorCord) {
-  const gridWithDoor = copyGrid(grid);
+  const gridWithDoor = deepCopy(grid);
   const x = doorCord[0];
   const y = doorCord[1];
   gridWithDoor[y][x] = DOOR;
   return gridWithDoor;
 }
 
-function hideDoorWithWall(doorPos, wallMask) {
-  const wallMaskWithDoor = copyGrid(wallMask);
-  if (wallMaskWithDoor.includes(doorPos)) {
-    return wallMaskWithDoor;
-  }
-  wallMaskWithDoor.push(doorCords);
-  return wallMaskWithDoor;
-}
-
 // ///////////////////////////////////////////////////////////////////////////////////
 // THIS IS THE MAIN FUNCTION CALLS FOR THIS
 // ///////////////////////////////////////////////////////////////////////////////////
 
-let GAME_OVER = false;
+let GAME_STATUS = "PLAYING";
+const hiddenItems = [];
+const bombsCords = [];
 
 function alignLeft(line, length = 1) {
   return `${"   ".repeat(length)} |${line}`;
@@ -234,16 +227,19 @@ function moveCharacterCords(grid, charCord, input) {
       y = y === SIZE_Y - 1 ? y : y + 1;
       break;
   }
-
-  if (grid[y][x] === GRASS_TILE) {
+  if (CHARACTER_WALK_OVER.includes(grid[y][x])){
     return [x, y];
   }
+
+  // if (grid[y][x] === GRASS_TILE) {
+  //   return [x, y];
+  // }
 
   return [charCord[0], charCord[1]];
 }
 
 function addCharacterToGrid(grid, cords) {
-  const gridWithCharacter = copyGrid(grid);
+  const gridWithCharacter = deepCopy(grid);
   const x = cords[0];
   const y = cords[1];
   gridWithCharacter[y][x] = CHARACTER;
@@ -290,16 +286,14 @@ function removeCordIfInWall(wall, cord) {
   return newWalls;
 }
 
-function placeBombs(bombs, charCord) {
-  const newBombs = copyGrid(bombs);
+function placeBombs(charCord) {
   const x = charCord[0];
   const y = charCord[1];
-  newBombs.push([x, y]);
-  return newBombs;
+  return [x, y];
 }
 
 function addBombToGrid(grid, bombs) {
-  const gridWithBomb = copyGrid(grid);
+  const gridWithBomb = deepCopy(grid);
   for (let index = 0; index < bombs.length; index++) {
     const bombX = bombs[index][0];
     const bombY = bombs[index][1];
@@ -368,14 +362,14 @@ function replacePlaces(grid, x, y, dx, dy, icon, count = BOMB_RANGE) {
   }
 
   if (grid[y][x] === CHARACTER) {
-    GAME_OVER = true;
+    GAME_STATUS = "GAME_OVER";
   }
   grid[y][x] = icon;
   return replacePlaces(grid, x + dx, y + dy, dx, dy, icon, count - 1);
 }
 
 function replaceBombBlaskWith(grid, bombCord, icon) {
-  let gridWithReplaceIcon = copyGrid(grid);
+  let gridWithReplaceIcon = deepCopy(grid);
 
   gridWithReplaceIcon = replacePlaces(
     gridWithReplaceIcon,
@@ -414,7 +408,7 @@ function replaceBombBlaskWith(grid, bombCord, icon) {
 
 function blaskBomb(grid, bombCord, charPos, count = 1) {
   if (count === WALL_COLORS.length) {
-    if (!GAME_OVER) {
+    if (GAME_STATUS !== "GAME_OVER") {
       grid[charPos[1]][charPos[0]] = GRASS_TILE;
     }
     return replaceBombBlaskWith(grid, bombCord, GRASS_TILE);
@@ -432,27 +426,70 @@ function isCordSame(cord1, cord2) {
 function checkWin(userCord, doorCord) {
   return isCordSame(userCord, doorCord);
 }
-function playGame(grid, doorCord, charPos, bombs, moves) {
-  console.clear();
 
-  if (GAME_OVER) {
+function setAction(grid, cord) {
+  const x = cord[0];
+  const y = cord[1];
+
+  switch (grid[y][x]) {
+    case DOOR:
+      GAME_STATUS = "LEVEL_CROSSED";
+      return;
+    case BOMB_BOOST:
+      TOTAL_BOMB += 1;
+      return;
+    case BLAST_BOOST:
+      BOMB_RANGE += 1;
+      return;
+  }
+}
+
+function deepCopy(item) {
+  if (Array.isArray(item)) {
+    const copyItem = [];
+    for (let index = 0; index < item.length; index++) {
+      const eachItemPart = deepCopy(item[index]);
+      copyItem.push(eachItemPart);
+    }
+    return copyItem;
+  }
+  return item;
+}
+
+function playGame(grid, bombsCords, hiddenItems, charPos) {
+  if (GAME_STATUS === "GAME_OVER") {
     console.log(showGrid(grid));
     console.log("YOU LOST!");
     return;
   }
 
-  const gridWithWall = grid;
+  const newHiddenItem = [];
+  
+  for (let index = 0; index < hiddenItems.length; index++) {
+    const item = hiddenItems[index];
+    const x = item[1][0];
+    const y = item[1][1];
 
-  const gridWithBombs = addBombToGrid(gridWithWall, bombs);
-
+    if (isCordSame(charPos, item[1])) {
+      setAction(grid, charPos);
+      grid[y][x] = GRASS_TILE
+    } else if (grid[y][x] === GRASS_TILE) {
+      grid[y][x] = item[0];
+      newHiddenItem.push(hiddenItems[index])
+    } else{
+      newHiddenItem.push(hiddenItems[index])
+    }
+  }
+  
+  
+  const gridWithBombs = addBombToGrid(grid, bombsCords);
   const gridWithChar = addCharacterToGrid(gridWithBombs, charPos);
-  console.log(showGrid(gridWithChar));
 
-  let newBombs = copyGrid(bombs);
   let newCharCord = [charPos[0], charPos[1]];
-  let newGrid = copyGrid(grid);
+  let newGrid = deepCopy(grid);
 
-  if (checkWin(charPos, doorCord)) {
+  console.log(showGrid(gridWithChar));
+  if (GAME_STATUS === "LEVEL_CROSSED") {
     console.log("You won!");
     return;
   }
@@ -462,28 +499,41 @@ function playGame(grid, doorCord, charPos, bombs, moves) {
   if (["a", "d", "s", "w"].includes(input)) {
     newCharCord = moveCharacterCords(gridWithBombs, charPos, input);
   } else {
-    if (input === "p" && bombs.length < TOTAL_BOMB) {
-      newBombs = placeBombs(bombs, charPos);
+    if (input === "p" && bombsCords.length < TOTAL_BOMB) {
+      const cord = placeBombs(charPos);
+      bombsCords.push(cord);
     } else if (
       input === "o" &&
-      bombs.length > 0 &&
-      !isCordSame(charPos, newBombs[0])
+      bombsCords.length > 0 &&
+      !isCordSame(charPos, bombsCords[0])
     ) {
-      newGrid = blaskBomb(gridWithChar, newBombs[0], charPos);
-      newBombs.shift();
+      newGrid = blaskBomb(gridWithChar, bombsCords[0], charPos);
+      bombsCords.shift();
     }
   }
 
-  playGame(newGrid, doorCord, newCharCord, newBombs, moves + 1);
+  playGame(newGrid, bombsCords, newHiddenItem, newCharCord);
 }
 
 const grid = createBomberManGrid();
 
-const doorCords = getDoorCords();
-
 const characterPos = [0, 0];
 
-const gridWithWall = addWallToGrid(grid, 140);
-gridWithWall[doorCords[1]][doorCords[0]] = WALL;
+const gridWithWall = addWallToGrid(grid, 150);
 
-playGame(gridWithWall, doorCords, characterPos, [], 0);
+const doorCords = getItemPlacingCord(hiddenItems);
+gridWithWall[doorCords[1]][doorCords[0]] = WALL;
+const doorItem = [DOOR, doorCords];
+hiddenItems.push(doorItem);
+
+const bombBoostCord = getItemPlacingCord(hiddenItems);
+gridWithWall[bombBoostCord[1]][bombBoostCord[0]] = WALL;
+const bombTokenItem = [BOMB_BOOST, bombBoostCord];
+hiddenItems.push(bombTokenItem);
+
+const blastBoostCord = getItemPlacingCord(hiddenItems);
+gridWithWall[blastBoostCord[1]][blastBoostCord[0]] = WALL;
+const fireBoostItem = [BLAST_BOOST, blastBoostCord];
+hiddenItems.push(fireBoostItem);
+
+playGame(gridWithWall, bombsCords, hiddenItems, characterPos, 0);
