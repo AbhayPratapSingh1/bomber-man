@@ -1,9 +1,10 @@
 //////////////////////////////////////////////////////////////////////////////////
-// THIS IS BASIC IMPLEMENTATION OF THE BOMBERMAN! WIHTOUT ENEMY!
+// THIS IS BASIC IMPLEMENTATION OF THE BOMBERMAN! WIHT ENEMY!
 // WASD FOR DIRECTION. P FOR PLANTING AND O FOR BLASTING;
 //////////////////////////////////////////////////////////////////////////////////
-const SIZE_X = 21;
-const SIZE_Y = 21;
+const SIZE_X = 11;
+const SIZE_Y = 11;
+const MAX_TOTAL_WALLS = 140;
 
 const RESET = "\x1b[0m";
 function generateBlock(fg = "\x1b[38;5;120m", bg = "", icon = "█", times = 1) {
@@ -69,13 +70,15 @@ function getBomb() {
   return generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", "💣");
 }
 
-function getBombBoost() 
-{
+function getBombBoost() {
   return generateBlock("\x1b[38;5;196m", "\x1b[48;5;240m", "💣");
 }
 
 function getBlastBoost() {
   return generateBlock("\x1b[38;5;196m", "\x1b[48;5;240m", "💥");
+}
+function getENEMY(icon = "👽") {
+  return generateBlock("\x1b[38;5;196m", "\x1b[48;5;120m", icon);
 }
 
 const GRASS_TILE = getGroundIcon();
@@ -88,10 +91,33 @@ const BOMB = getBomb();
 const BOMB_BOOST = getBombBoost();
 const BLAST_BOOST = getBlastBoost();
 
-const CHARACTER_WALK_OVER = [GRASS_TILE, DOOR, BOMB_BOOST, BLAST_BOOST];
+const ENEMY1 = getENEMY("👽");
+const ENEMY2 = getENEMY("👾");
+
+const ENEMYS_CANDIDATES = [ENEMY1, ENEMY2];
+
+const CHARACTER_WALK_OVER = [
+  GRASS_TILE,
+  DOOR,
+  BOMB_BOOST,
+  BLAST_BOOST,
+  ENEMY1,
+  ENEMY2,
+];
+
+const ENEMY_WALK_OVER = [
+  DOOR,
+  BOMB_BOOST,
+  BLAST_BOOST,
+  ENEMY1,
+  ENEMY2,
+  GRASS_TILE,
+  CHARACTER,
+];
 
 let TOTAL_BOMB = 1;
 let BOMB_RANGE = 1;
+let ENEMY = [];
 
 function delay(duration = 1) {
   for (let count = 0; count < duration * 1000000000; count++) {}
@@ -131,18 +157,28 @@ function randomNumber(st, end) {
   return Math.floor(Math.random() * (end - st)) + st;
 }
 
-function addWallToGrid(grid, count = 20) {
-  const gridWithWall = deepCopy(grid);
-
+function getWalls(count = 140) {
+  const walls = [];
   let wallsToAdd = count;
+
   while (wallsToAdd > 0) {
     const x = randomNumber(0, SIZE_X);
     const y = randomNumber(0, SIZE_Y);
     const cords = [x, y];
     if (isValidPos(cords, [])) {
-      gridWithWall[y][x] = WALL;
+      walls.push(cords);
       wallsToAdd--;
     }
+  }
+  return walls;
+}
+
+function addWallsToGrid(grid, walls) {
+  const gridWithWall = deepCopy(grid);
+  for (let index = 0; index < walls.length; index++) {
+    const x = walls[index][0];
+    const y = walls[index][1];
+    gridWithWall[y][x] = WALL;
   }
   return gridWithWall;
 }
@@ -156,7 +192,7 @@ function isValidPos(cords, usedPlaces) {
   if (x % 2 === 1 && y % 2 === 1) {
     return false;
   }
-  return x > 1 && y > 1;
+  return x > 1 || y > 1;
 }
 
 function getItemPlacingCord(usedPlaces) {
@@ -227,13 +263,10 @@ function moveCharacterCords(grid, charCord, input) {
       y = y === SIZE_Y - 1 ? y : y + 1;
       break;
   }
-  if (CHARACTER_WALK_OVER.includes(grid[y][x])){
+
+  if (CHARACTER_WALK_OVER.includes(grid[y][x])) {
     return [x, y];
   }
-
-  // if (grid[y][x] === GRASS_TILE) {
-  //   return [x, y];
-  // }
 
   return [charCord[0], charCord[1]];
 }
@@ -292,7 +325,7 @@ function placeBombs(charCord) {
   return [x, y];
 }
 
-function addBombToGrid(grid, bombs) {
+function addBombsToGrid(grid, bombs) {
   const gridWithBomb = deepCopy(grid);
   for (let index = 0; index < bombs.length; index++) {
     const bombX = bombs[index][0];
@@ -311,6 +344,24 @@ function removeWall(walls, x, y, dx, dy, count = BOMB_RANGE) {
     return newWalls;
   }
   return removeWall(walls, x + dx, y + dy, dx, dy, count - 1);
+}
+
+function checkCordInIcons(icons, cords) {
+  for (let index = 0; index < icons.length; index++) {
+    let same = true;
+    const cor = icons[index][1];
+
+    for (let itr = 0; itr < cor.length; itr++) {
+      if (cords[itr] !== cor[itr]) {
+        same = false;
+        break;
+      }
+    }
+    if (same) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function includeInArray(array1, array2) {
@@ -344,7 +395,38 @@ function differenceBtwArrays(array, array2) {
   return differentElements;
 }
 
-function replacePlaces(grid, x, y, dx, dy, icon, count = BOMB_RANGE) {
+function isDeepEqual(item1, item2) {
+  if (Array.isArray(item1) && Array.isArray(item2)) {
+    if (item1.length !== item2.length) {
+      return false;
+    }
+    for (let index = 0; index < item1.length; index++) {
+      if (!isDeepEqual(item1[index], item2[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return item1 === item2;
+}
+
+function removeItemFromArray(array, item) {
+  const newArray = [];
+
+  for (let index = 0; index < array.length; index++) {
+    if (!isDeepEqual(array[index][1], item)) {
+      newArray.push(array[index]);
+    }
+  }
+  ENEMY = newArray;
+}
+
+function replacePlaces(grid, cord, adding, icon, count = BOMB_RANGE) {
+  const x = cord[0];
+  const y = cord[1];
+
+  const dx = adding[0];
+  const dy = adding[1];
   if (
     x < 0 ||
     y < 0 ||
@@ -364,59 +446,61 @@ function replacePlaces(grid, x, y, dx, dy, icon, count = BOMB_RANGE) {
   if (grid[y][x] === CHARACTER) {
     GAME_STATUS = "GAME_OVER";
   }
+
+  if (checkCordInIcons(ENEMY, cord)) {
+    removeItemFromArray(ENEMY, cord);
+  }
   grid[y][x] = icon;
-  return replacePlaces(grid, x + dx, y + dy, dx, dy, icon, count - 1);
+  return replacePlaces(grid, [x + dx, y + dy], adding, icon, count - 1);
 }
 
-function replaceBombBlaskWith(grid, bombCord, icon) {
+function replaceBombBlastWith(grid, bombCord, icon) {
   let gridWithReplaceIcon = deepCopy(grid);
 
   gridWithReplaceIcon = replacePlaces(
     gridWithReplaceIcon,
-    bombCord[0],
-    bombCord[1],
-    1,
-    0,
+    bombCord,
+    [1, 0],
     icon
   );
   gridWithReplaceIcon = replacePlaces(
     gridWithReplaceIcon,
-    bombCord[0],
-    bombCord[1],
-    -1,
-    0,
+    bombCord,
+    [-1, 0],
     icon
   );
   gridWithReplaceIcon = replacePlaces(
     gridWithReplaceIcon,
-    bombCord[0],
-    bombCord[1],
-    0,
-    -1,
+    bombCord,
+    [0, 1],
     icon
   );
   gridWithReplaceIcon = replacePlaces(
     gridWithReplaceIcon,
-    bombCord[0],
-    bombCord[1],
-    0,
-    1,
+    bombCord,
+    [0, -1],
     icon
   );
   return gridWithReplaceIcon;
 }
 
-function blaskBomb(grid, bombCord, charPos, count = 1) {
+function blastBomb(grid, bombCord, charPos, ENEMY, count = 1) {
   if (count === WALL_COLORS.length) {
-    if (GAME_STATUS !== "GAME_OVER") {
-      grid[charPos[1]][charPos[0]] = GRASS_TILE;
-    }
-    return replaceBombBlaskWith(grid, bombCord, GRASS_TILE);
+    return replaceBombBlastWith(grid, bombCord, GRASS_TILE);
   }
+
+  const buringGrid = replaceBombBlastWith(grid, bombCord, getWall(count));
+  const chX = charPos[0];
+  const chY = charPos[1];
+  let gridWithEntities = deepCopy(buringGrid);
+
+  gridWithEntities[chY][chX] = CHARACTER;
+  gridWithEntities = addEnemyToGrid(gridWithEntities);
+
   console.clear();
-  const buringGrid = replaceBombBlaskWith(grid, bombCord, getWall(count));
-  console.log(showGrid(buringGrid));
-  return blaskBomb(grid, bombCord, charPos, count + 1);
+  console.log(showGrid(gridWithEntities));
+
+  return blastBomb(grid, bombCord, charPos, ENEMY, count + 1);
 }
 
 function isCordSame(cord1, cord2) {
@@ -431,9 +515,16 @@ function setAction(grid, cord) {
   const x = cord[0];
   const y = cord[1];
 
-  switch (grid[y][x]) {
+  const icon = grid[y][x];
+
+  if (ENEMYS_CANDIDATES.includes(icon)) {
+    GAME_STATUS = "GAME_OVER";
+    return;
+  }
+
+  switch (icon) {
     case DOOR:
-      GAME_STATUS = "LEVEL_CROSSED";
+      GAME_STATUS = ENEMY.length === 0 ? "LEVEL_CROSSED" : GAME_STATUS;
       return;
     case BOMB_BOOST:
       TOTAL_BOMB += 1;
@@ -456,16 +547,86 @@ function deepCopy(item) {
   return item;
 }
 
+function canEnemyMove(pos, grid) {
+  const x = pos[0];
+  const y = pos[1];
+
+  if (y > 0 && ENEMY_WALK_OVER.includes(grid[y - 1][x])) {
+    return true;
+  }
+  if (y < SIZE_Y - 1 && ENEMY_WALK_OVER.includes(grid[y + 1][x])) {
+    return true;
+  }
+
+  if (x > 0 && ENEMY_WALK_OVER.includes(grid[y][x - 1])) {
+    return true;
+  }
+
+  if (x < SIZE_X - 1 && ENEMY_WALK_OVER.includes(grid[y][x + 1])) {
+    return true;
+  }
+
+  return false;
+}
+
+function isValidEnemyMove(grid, pos) {
+  const x = pos[0];
+  const y = pos[1];
+  if (x < 0 || x >= SIZE_X || y < 0 || y >= SIZE_Y){
+    return false;
+  }
+  return ENEMY_WALK_OVER.includes(grid[y][x]);
+}
+
+function moveSingleEnemy(pos, grid) {
+  let newPos = deepCopy(pos);
+  if (!canEnemyMove(pos, grid)) {
+    return newPos;
+  }
+
+  newPos = [1, 1];
+  while (!isValidEnemyMove(grid, newPos)) {
+    newPos = deepCopy(pos);
+    const direction = Math.floor(Math.random() * 2);
+    const addingFactor = -1 + Math.floor(Math.random() * 2) * 2;
+    newPos[direction] += addingFactor;
+  }
+  return newPos;
+}
+
+function moveEnemy(grid) {
+  const newEnemyMoves = [];
+  for (let index = 0; index < ENEMY.length; index++) {
+    const enemyData = ENEMY[index];
+    const newEnemyData = moveSingleEnemy(enemyData[1], grid);
+    newEnemyMoves.push([enemyData[0], newEnemyData]);
+  }
+  ENEMY = newEnemyMoves;
+}
+
+function addEnemyToGrid(grid) {
+  const gridWithEnemy = deepCopy(grid);
+  for (let index = 0; index < ENEMY.length; index++) {
+    const enemy = ENEMY[index];
+    const x = enemy[1][0];
+    const y = enemy[1][1];
+    gridWithEnemy[y][x] = enemy[0];
+  }
+  return gridWithEnemy;
+}
+
 function playGame(grid, bombsCords, hiddenItems, charPos) {
   console.clear();
-  if (GAME_STATUS === "GAME_OVER") {
-    console.log(showGrid(grid));
+
+  if (GAME_STATUS === "GAME_OVER" || checkCordInIcons(ENEMY, charPos)) {
+    const gridWithEnemy = addEnemyToGrid(grid);
+    console.log(showGrid(gridWithEnemy));
     console.log("YOU LOST!");
     return;
   }
 
   const newHiddenItem = [];
-  
+
   for (let index = 0; index < hiddenItems.length; index++) {
     const item = hiddenItems[index];
     const x = item[1][0];
@@ -473,18 +634,21 @@ function playGame(grid, bombsCords, hiddenItems, charPos) {
 
     if (isCordSame(charPos, item[1])) {
       setAction(grid, charPos);
-      grid[y][x] = GRASS_TILE
+      grid[y][x] = item[0] !== DOOR ? GRASS_TILE : grid[y][x];
+      if (item[0] === DOOR) {
+        newHiddenItem.push(item);
+      }
     } else if (grid[y][x] === GRASS_TILE) {
       grid[y][x] = item[0];
-      newHiddenItem.push(hiddenItems[index])
-    } else{
-      newHiddenItem.push(hiddenItems[index])
+      newHiddenItem.push(hiddenItems[index]);
+    } else {
+      newHiddenItem.push(hiddenItems[index]);
     }
   }
-  
-  
-  const gridWithBombs = addBombToGrid(grid, bombsCords);
-  const gridWithChar = addCharacterToGrid(gridWithBombs, charPos);
+
+  const gridWithBombs = addBombsToGrid(grid, bombsCords);
+  const gridWithEmeny = addEnemyToGrid(gridWithBombs);
+  const gridWithChar = addCharacterToGrid(gridWithEmeny, charPos);
 
   let newCharCord = [charPos[0], charPos[1]];
   let newGrid = deepCopy(grid);
@@ -494,7 +658,7 @@ function playGame(grid, bombsCords, hiddenItems, charPos) {
     console.log("You won!");
     return;
   }
-
+  moveEnemy(gridWithBombs);
   const input = userInput();
 
   if (["a", "d", "s", "w"].includes(input)) {
@@ -508,7 +672,7 @@ function playGame(grid, bombsCords, hiddenItems, charPos) {
       bombsCords.length > 0 &&
       !isCordSame(charPos, bombsCords[0])
     ) {
-      newGrid = blaskBomb(gridWithChar, bombsCords[0], charPos);
+      newGrid = blastBomb(gridWithBombs, bombsCords[0], charPos, ENEMY);
       bombsCords.shift();
     }
   }
@@ -520,7 +684,9 @@ const grid = createBomberManGrid();
 
 const characterPos = [0, 0];
 
-const gridWithWall = addWallToGrid(grid, 150);
+const walls = getWalls(MAX_TOTAL_WALLS);
+
+const gridWithWall = addWallsToGrid(grid, walls);
 
 const doorCords = getItemPlacingCord(hiddenItems);
 gridWithWall[doorCords[1]][doorCords[0]] = WALL;
@@ -537,4 +703,11 @@ gridWithWall[blastBoostCord[1]][blastBoostCord[0]] = WALL;
 const fireBoostItem = [BLAST_BOOST, blastBoostCord];
 hiddenItems.push(fireBoostItem);
 
-playGame(gridWithWall, bombsCords, hiddenItems, characterPos, 0);
+for (let index = 0; index < 2; index++) {
+  const enemyCord = getItemPlacingCord(walls);
+  const enemyType =
+    ENEMYS_CANDIDATES[Math.floor(Math.random() * ENEMYS_CANDIDATES.length)];
+  ENEMY.push([enemyType, enemyCord]);
+}
+
+playGame(gridWithWall, bombsCords, hiddenItems, characterPos);
